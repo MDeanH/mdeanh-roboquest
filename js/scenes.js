@@ -78,7 +78,7 @@ RQ.scenes = (() => {
   function story(ctx, G, input, dt) {
     ctx.fillStyle = '#06060f';
     ctx.fillRect(0, 0, VW, VH);
-    panel(ctx, 20, 22, VW - 40, 130, '#b06fd8');
+    panel(ctx, 20, 22, VW - 40, 136, '#b06fd8');
     let y = 46;
     for (const line of RQ.levels.INTRO) {
       for (const wl of wrap(line, 38)) {

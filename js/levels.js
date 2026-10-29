@@ -73,28 +73,28 @@ RQ.levels = (() => {
   // ---------- FACT CONTENT ----------
   const FACTS = {
     power: [
-      "A robot's POWER SUPPLY feeds energy to every other part. No power... no robot.",
-      "Most robots run on BATTERIES — Li-ion packs in small bots, bigger packs in machines like cars and drones.",
-      "VOLTAGE is electrical pressure. Every component needs the right amount — a REGULATOR keeps it steady.",
-      "Robots watch their own charge level and must recharge or swap batteries before they run dry.",
+      "The POWER SUPPLY is the robot's lunchbox — it feeds energy to every wire, motor, and chip. No power, no robot.",
+      "Most robots run on BATTERIES. Small bots use Li-ion packs; an electric car is basically a giant battery robot.",
+      "VOLTAGE is electrical pressure. Too much fries the circuits — a REGULATOR keeps it smooth and safe.",
+      "Smart robots watch their own charge and dock themselves before they run dry.",
     ],
     sensor: [
-      "SENSORS are a robot's eyes and ears — they turn the real world into data the brain can use.",
-      "ULTRASONIC sensors fire a sound ping and time the echo to measure distance — like a bat in the dark.",
-      "GYROSCOPES and ACCELEROMETERS feel tilt and motion, so robots can balance and know which way is up.",
-      "CAMERAS plus vision code let robots spot objects, read signs, and follow lines on the floor.",
+      "SENSORS are the robot's senses — they turn light, sound, and touch into numbers the brain can read.",
+      "ULTRASONIC sensors shout a ping and time the echo — that's how a robot 'sees' distance, like a bat.",
+      "GYROSCOPES + ACCELEROMETERS feel tilt and motion — that's the sense that tells a robot which way is up.",
+      "CAMERAS feed pictures to vision code — that's how robots spot faces, read signs, and follow lines.",
     ],
     motor: [
-      "ACTUATORS make robots move — they turn electrical energy into motion.",
-      "DC MOTORS spin fast and drive wheels. A GEARBOX trades speed for strength — that strength is called torque.",
-      "SERVO motors snap to exact angles — perfect for steering wheels and robot arms.",
-      "Grippers, wheels, legs and propellers all count as actuators — anything that moves the bot.",
+      "ACTUATORS are the robot's muscles — they turn electricity into motion. Wheels, arms, grippers: all actuators.",
+      "DC MOTORS spin fast for wheels. Add a GEARBOX and you trade speed for muscle — that muscle is called torque.",
+      "SERVO motors snap to exact angles — that's how robot arms wave hello and steering wheels turn.",
+      "Legs, propellers, claws — if it makes the robot move, it's an actuator doing the moving.",
     ],
     circuit: [
-      "The CONTROLLER is the robot's brain — a microcontroller like an Arduino, or a computer like a Raspberry Pi.",
-      "Every robot runs the same loop: SENSE (read sensors) > THINK (run code) > ACT (drive motors).",
-      "The PROGRAM is a list of instructions: IF obstacle ahead THEN turn left. Code decides everything.",
-      "Without software, the best hardware is a paperweight — the program is what makes it a robot.",
+      "The CONTROLLER is the robot's brain — a tiny computer (Arduino, Raspberry Pi) that reads sensors and orders motors.",
+      "Every robot runs one loop forever: SENSE the world > THINK about it > ACT on it. Repeat.",
+      "The PROGRAM is the recipe the brain follows: IF ball rolls left THEN turn left. Robots only do what code says.",
+      "Hardware without software is a paperweight — the program is what turns a pile of parts into a robot.",
     ],
   };
 
@@ -187,51 +187,51 @@ RQ.levels = (() => {
   // ---------- BOSS QUIZ ----------
   const QUIZ = [
     {
-      q: "Which part gives a robot its ENERGY?",
-      a: ["The antenna", "The power supply", "The wheels", "The camera"],
-      c: 1, hint: FACTS.power[0],
+      q: "Which part is the robot's ENERGY source?",
+      a: ["Antenna", "Power supply", "Wheels", "Camera"],
+      c: 1, hint: "Think lunchbox: the power supply feeds energy to every other part.",
     },
     {
       q: "What does a VOLTAGE REGULATOR do?",
       a: ["Keeps power steady", "Makes motors louder", "Sees in the dark", "Stores the program"],
-      c: 0, hint: FACTS.power[2],
+      c: 0, hint: "Voltage is pressure — the regulator keeps it smooth so circuits don't fry.",
     },
     {
-      q: "Which sensor pings SOUND to measure distance?",
-      a: ["Camera", "Gyroscope", "Ultrasonic", "Touch sensor"],
-      c: 2, hint: FACTS.sensor[1],
+      q: "Which sensor uses SOUND to measure distance?",
+      a: ["Camera", "Gyroscope", "Ultrasonic sensor", "Touch bumper"],
+      c: 2, hint: "It's the bat trick: ping a sound, time the echo.",
     },
     {
-      q: "Which sensor helps a robot keep its BALANCE?",
-      a: ["Heat sensor", "Touch bumper", "LED", "Gyroscope"],
-      c: 3, hint: FACTS.sensor[2],
+      q: "What helps a robot keep its BALANCE?",
+      a: ["LED lights", "Touch bumper", "Speaker", "Gyroscope"],
+      c: 3, hint: "The same sense that tells you which way is up.",
     },
     {
       q: "Which actuator snaps to an EXACT ANGLE?",
       a: ["DC motor", "Servo motor", "Propeller", "Spring"],
-      c: 1, hint: FACTS.motor[2],
+      c: 1, hint: "Servos are position-precise — arms and steering, not wheels.",
     },
     {
       q: "A GEARBOX trades speed for...",
-      a: ["Color", "Weight", "Torque (strength)", "Battery life"],
-      c: 2, hint: FACTS.motor[1],
+      a: ["Fancier colors", "Less weight", "Torque — muscle", "Longer battery life"],
+      c: 2, hint: "Gears: slower but stronger. That strength is called torque.",
     },
     {
-      q: "What is the robot's BRAIN called?",
+      q: "What's the robot's BRAIN called?",
       a: ["The chassis", "The controller", "The gearbox", "The sensor"],
-      c: 1, hint: FACTS.circuit[0],
+      c: 1, hint: "It's the little computer running the whole show.",
     },
     {
-      q: "Every robot runs which loop?",
-      a: ["Act-Think-Sense", "Think-Act-Sense", "Sense-Think-Act", "Sleep-Eat-Act"],
-      c: 2, hint: FACTS.circuit[1],
+      q: "Every robot repeats which loop forever?",
+      a: ["Act-Think-Sense", "Think-Act-Sense", "Sense-Think-Act", "Eat-Sleep-Repeat"],
+      c: 2, hint: "SENSE first — a robot can't think about data it never gathered.",
     },
   ];
 
   const INTRO = [
-    "BOLT was the factory's best teaching bot — until MEGA-SCRAP tore him apart.",
-    "Rebuild BOLT piece by piece: BATTERY, SENSORS, MOTORS, CPU.",
-    "Learn what each part does... then take the final exam from the scrap king himself.",
+    "BOLT was the factory's top teaching bot — until MEGA-SCRAP smashed him for parts.",
+    "Rebuild him one system at a time: POWER it, let it SENSE, make it MOVE, give it a BRAIN.",
+    "Collect the parts. Read the terminals. Then face the scrap king's FINAL EXAM.",
   ];
 
   return { LEVELS, THEMES, FACTS, QUIZ, INTRO, H, build };
