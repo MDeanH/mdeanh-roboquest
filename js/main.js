@@ -4,8 +4,6 @@
   const ctx = cv.getContext('2d');
   ctx.imageSmoothingEnabled = false;
 
-  const PARTS = ['battery', 'sensor', 'motor', 'cpu'];
-
   // ---------- INPUT ----------
   const keys = {};
   const pressed = {};
@@ -23,19 +21,25 @@
     get left()  { return !!(keys['arrowleft'] || keys['a']); },
     get right() { return !!(keys['arrowright'] || keys['d']); },
     get jump()  { return !!(keys[' '] || keys['arrowup'] || keys['w'] || keys['z']); },
-    get use()   { return !!(keys['e'] || keys['arrowdown'] || keys['s'] || keys['enter']); },
+    get use()   { return !!keys['e']; },
+    get sprint() { return !!(keys['shift'] || keys['x']); },
   };
   function edge() {
     input.jumpPressed  = !!(pressed[' '] || pressed['arrowup'] || pressed['w'] || pressed['z']);
-    input.usePressed   = !!(pressed['e'] || pressed['arrowdown'] || pressed['s']);
+    input.usePressed   = !!pressed['e'];
     input.enterPressed = !!(pressed['enter']);
+    input.leftPressed = !!(pressed['arrowleft'] || pressed['a']);
+    input.rightPressed = !!(pressed['arrowright'] || pressed['d']);
+    input.upPressed = !!(pressed['arrowup'] || pressed['w']);
+    input.downPressed = !!(pressed['arrowdown'] || pressed['s']);
+    input.sonarPressed = !!pressed['c'];
     for (const k in pressed) pressed[k] = false;
   }
 
   // ---------- GAME STATE ----------
   const G = {
     scene: 'title', levelIdx: 0, world: null,
-    parts: [], score: 0, t: 0,
+    parts: [], abilities: new Set(), score: 0, t: 0,
     justInstalled: null, lastFacts: [],
   };
   window.G = G; // debug hook
@@ -46,17 +50,17 @@
 
   function startLevel(i) {
     G.levelIdx = i;
-    G.world = RQ.game.loadLevel(i);
+    G.world = RQ.game.loadLevel(i, G.abilities);
     G.scene = 'play';
     RQ.audio.music('level');
   }
   function startBoss() {
-    G.world = RQ.game.loadBoss();
+    G.world = RQ.game.loadBoss(G.abilities);
     G.scene = 'play';
     RQ.audio.music('boss');
   }
   function restart() {
-    G.parts = []; G.score = 0; G.levelIdx = 0;
+    G.parts = []; G.abilities = new Set(); G.score = 0; G.levelIdx = 0;
     G.world = null;
     G.scene = 'title';
     RQ.audio.music('title');
@@ -64,9 +68,14 @@
 
   function transitionPlay() {
     const w = G.world;
-    if (w.openTerminal) {
-      w.dialogT = 0;
-      G.scene = 'dialog';
+    if (w.openBench) {
+      G.scene = 'bench';
+      return;
+    }
+    if (w.openGate) {
+      G.currentGate = w.openGate;
+      w.openGate = null;
+      G.scene = 'gate';
       return;
     }
     if (w.dead) { G.scene = 'gameover'; RQ.audio.music(null); return; }
@@ -76,10 +85,7 @@
         G.scene = 'victory';
         RQ.audio.music('victory');
       } else {
-        const part = PARTS[G.levelIdx];
-        if (!G.parts.includes(part)) G.parts.push(part);
         G.score += w.score;
-        G.justInstalled = w.theme.partName;
         G.lastFacts = w.facts;
         G.scene = 'workshop';
         RQ.audio.music('workshop');
@@ -118,9 +124,30 @@
         transitionPlay();
         break;
       }
-      case 'dialog': {
-        const n = S.dialog(ctx, G, input, dt);
-        if (n === 'play') { G.world.openTerminal = null; G.scene = 'play'; RQ.audio.blip(); }
+      case 'bench': {
+        const result = S.bench(ctx, G, input);
+        if (result && result.installed) {
+          if (!G.parts.includes(result.part)) G.parts.push(result.part);
+          G.abilities.add(result.ability);
+          G.justInstalled = G.world.theme.partName;
+          G.lastFacts = G.world.facts;
+          G.world.bench.installed = true;
+          G.world.flashT = 0.18;
+          for (let y = 0; y < 9; y++) {
+            const x = G.world.meta.barrierX;
+            G.world.map[y] = G.world.map[y].slice(0, x) + '.' + G.world.map[y].slice(x + 1);
+          }
+          G.scene = 'play';
+          RQ.audio.part();
+        }
+        break;
+      }
+      case 'gate': {
+        const result = S.codeGate(ctx, G, input, G.currentGate);
+        if (result && result.solved) {
+          G.scene = 'play';
+          G.currentGate = null;
+        }
         break;
       }
       case 'workshop': {

@@ -6,34 +6,49 @@ RQ.game = (() => {
   const GRAV = 1500, MOVE = 95, JUMP = 430;
   const COYOTE = 0.09, BUFFER = 0.12, IFRAMES = 1.3;
 
-  const solidAt = (map, tx, ty) => {
+  const solidAt = (w, tx, ty) => {
+    const map = w.map;
     if (ty < 0) return false;
     if (tx < 0 || tx >= map[0].length) return true;
     if (ty >= map.length) return false;
-    return map[ty][tx] === '#';
+    return ['#', '|', 'D'].includes(map[ty][tx]);
   };
   const platAt = (map, tx, ty) => {
     if (tx < 0 || tx >= map[0].length || ty < 0 || ty >= map.length) return false;
-    return map[ty][tx] === '-';
+    return map[ty][tx] === '-' || map[ty][tx] === '=';
   };
 
-  function loadLevel(idx) {
+  function toast(w, text, secs = 3) {
+    w.toast = { text, life: secs, duration: secs };
+  }
+
+  function loadLevel(idx, abilities = new Set()) {
     const spec = RQ.levels.LEVELS[idx];
     const map = RQ.levels.build(spec);
     const w = {
-      idx, map, theme: spec.theme, facts: spec.facts,
+      idx, map, theme: spec.theme, facts: spec.facts, meta: spec.meta,
       W: map[0].length, H: map.length,
       t: 0, cam: { x: 0, y: 12 },
-      screws: [], terms: [], enemies: [], arcs: [], spikes: [], parts: [],
-      prompt: null, openTerminal: null, complete: false, dead: false,
-      score: 0, factsRead: new Set(),
+      abilities, screws: [], beacons: [], cells: [], crates: [], gates: [],
+      enemies: [], arcs: [], spikes: [], parts: [],
+      prompt: null, openBench: false, openGate: null, complete: false, dead: false,
+      score: 0, factsRead: new Set(), energy: 100, dark: !!spec.dark,
+      darkFrom: spec.meta.darkness[0] || null, revealed: Array.from({ length: map.length }, () => Array(map[0].length).fill(0)),
+      sonarCooldown: 0, sonarRing: null, toast: null, shakeT: 0, flashT: 0,
+      darkCanvas: document.createElement('canvas'),
     };
+    w.darkCanvas.width = VW; w.darkCanvas.height = VH;
+    w.bench = null;
     for (let y = 0; y < map.length; y++) {
       for (let x = 0; x < map[y].length; x++) {
         const ch = map[y][x];
         const px = x * T, py = y * T;
         if (ch === 'o') w.screws.push({ x: px + 4, y: py + 4, got: false });
-        else if (ch === 'T') w.terms.push({ x: px + 1, y: py - 2, idx: w.terms.length });
+        else if (ch === 'T') w.beacons.push({ x: px + 1, y: py - 2, idx: w.beacons.length, read: false });
+        else if (ch === 'E') { w.cells.push({ x: px, y: py, got: false }); map[y] = map[y].slice(0, x) + '.' + map[y].slice(x + 1); }
+        else if (ch === 'B') { w.crates.push({ x: px, y: py, startX: px, startY: py, w: 16, h: 16, vy: 0, grounded: false, bumpT: 0, notified: false }); map[y] = map[y].slice(0, x) + '.' + map[y].slice(x + 1); }
+        else if (ch === 'R') { w.bench = { x: px, y: py }; map[y] = map[y].slice(0, x) + '.' + map[y].slice(x + 1); }
+        else if (ch === 'K') { w.gates.push({ x: px, y: py, id: spec.meta.gates.find(g => g.x === x).id, done: false }); }
         else if (ch === 'C') w.enemies.push({ type: 'crawl', x: px + 1, y: py + 10, vx: -18, w: 14, h: 6, alive: true, anim: Math.random() });
         else if (ch === 'F') w.enemies.push({ type: 'fly', x: px, y: py, ox: px, oy: py, vx: 26, w: 14, h: 7, alive: true, anim: Math.random() });
         else if (ch === '~') w.arcs.push({ x: px + 3, y: py - 8, phase: Math.random() * 2.4 });
@@ -46,14 +61,16 @@ RQ.game = (() => {
   }
 
   // Boss arena reuses the same physics on a flat world.
-  function loadBoss() {
+  function loadBoss(abilities = new Set()) {
     const w = {
       idx: -1, isBoss: true, theme: RQ.levels.THEMES.boss,
       map: [], W: 22, H: 12,
       t: 0, cam: { x: 0, y: 12 },
-      screws: [], terms: [], enemies: [], arcs: [], spikes: [], parts: [],
+      abilities, screws: [], beacons: [], cells: [], crates: [], gates: [], enemies: [], arcs: [], spikes: [], parts: [],
       prompt: null, complete: false, dead: false,
-      score: 0, factsRead: new Set(), facts: [],
+      score: 0, factsRead: new Set(), facts: [], energy: 100, dark: false,
+      sonarCooldown: 0, sonarRing: null, toast: null, shakeT: 0, flashT: 0,
+      revealed: Array.from({ length: 12 }, () => Array(22).fill(0)),
     };
     const row = '#'.repeat(22);
     w.map = [];
@@ -80,6 +97,7 @@ RQ.game = (() => {
     p.iframes = IFRAMES;
     p.vy = -220;
     p.vx = dir * 90;
+    w.shakeT = 0.15;
     RQ.audio.hurt();
     addParts(w, p.x + p.w / 2, p.y + p.h / 2, 12, '#e23b3b');
     if (p.hp <= 0) { w.dead = true; RQ.audio.death(); }
@@ -91,7 +109,7 @@ RQ.game = (() => {
     const y0 = Math.floor(p.y / T), y1 = Math.floor((p.y + p.h - 0.01) / T);
     for (let ty = y0; ty <= y1; ty++) {
       for (let tx = x0; tx <= x1; tx++) {
-        if (solidAt(map, tx, ty)) {
+        if (solidAt(w, tx, ty)) {
           if (p.vx > 0) p.x = tx * T - p.w - 0.01;
           else if (p.vx < 0) p.x = (tx + 1) * T + 0.01;
           p.vx = 0;
@@ -108,7 +126,7 @@ RQ.game = (() => {
     p.onGround = false;
     for (let ty = y0; ty <= y1; ty++) {
       for (let tx = x0; tx <= x1; tx++) {
-        if (solidAt(map, tx, ty)) {
+        if (solidAt(w, tx, ty)) {
           if (p.vy > 0) { p.y = ty * T - p.h - 0.01; p.onGround = true; }
           else if (p.vy < 0) p.y = (ty + 1) * T + 0.01;
           p.vy = 0;
@@ -124,18 +142,77 @@ RQ.game = (() => {
     }
   }
 
+  function crateBlocked(w, c, x, y) {
+    const tx0 = Math.floor(x / T), tx1 = Math.floor((x + c.w - 0.01) / T);
+    const ty0 = Math.floor(y / T), ty1 = Math.floor((y + c.h - 0.01) / T);
+    for (let ty = ty0; ty <= ty1; ty++) {
+      for (let tx = tx0; tx <= tx1; tx++) if (solidAt(w, tx, ty)) return true;
+    }
+    return w.crates.some(other => other !== c &&
+      x < other.x + other.w && x + c.w > other.x &&
+      y < other.y + other.h && y + c.h > other.y);
+  }
+
+  function updateCrates(w, dt) {
+    for (const c of w.crates) {
+      c.bumpT -= dt;
+      c.vy = Math.min(c.vy + GRAV * dt, 420);
+      const nextY = c.y + c.vy * dt;
+      if (!crateBlocked(w, c, c.x, nextY)) {
+        c.y = nextY;
+        c.grounded = false;
+      } else if (c.vy >= 0) {
+        const ty = Math.floor((nextY + c.h) / T);
+        c.y = ty * T - c.h;
+        c.vy = 0;
+        c.grounded = true;
+      }
+      if (c.y > w.H * T + 24) {
+        c.x = c.startX; c.y = c.startY; c.vy = 0; c.grounded = false;
+      }
+    }
+  }
+
+  function collideCratesY(w, p, prevFeet) {
+    if (p.vy < 0) return;
+    for (const c of w.crates) {
+      if (p.x + p.w > c.x && p.x < c.x + c.w &&
+          prevFeet <= c.y + 1 && p.y + p.h >= c.y) {
+        p.y = c.y - p.h - 0.01;
+        p.vy = 0;
+        p.onGround = true;
+      }
+    }
+  }
+
   function updatePlayer(w, input, dt) {
     const p = w.player;
     const ax = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    p.vx = ax * MOVE;
+    const hasSprint = w.abilities.has('sprint');
+    let brownout = w.idx === 0 && !hasSprint && w.energy <= 0;
+    const move = brownout ? 40 : (hasSprint && input.sprint ? 160 : MOVE);
+    p.vx = ax * move;
     if (ax) p.face = ax;
+    if (w.idx === 0 && !hasSprint && ax) {
+      w.energy = Math.max(0, w.energy - 6 * dt);
+      if (w.energy === 0 && !w.brownoutShown) {
+        w.brownoutShown = true;
+        toast(w, 'BROWNOUT! No power = no motion.', 4);
+      }
+    }
 
     if (input.jumpPressed) p.buffer = BUFFER;
     else p.buffer -= dt;
     p.coyote -= dt;
 
     if (p.buffer > 0 && (p.onGround || p.coyote > 0)) {
-      p.vy = -JUMP;
+      if (w.idx === 0 && !hasSprint) w.energy = Math.max(0, w.energy - 10);
+      brownout = w.idx === 0 && !hasSprint && w.energy <= 0;
+      if (brownout && !w.brownoutShown) {
+        w.brownoutShown = true;
+        toast(w, 'BROWNOUT! No power = no motion.', 4);
+      }
+      p.vy = -(brownout ? JUMP * 0.6 : JUMP);
       p.buffer = 0; p.coyote = 0; p.onGround = false;
       RQ.audio.jump();
       addParts(w, p.x + p.w / 2, p.y + p.h, 5, '#8b93a8');
@@ -143,12 +220,42 @@ RQ.game = (() => {
     if (!input.jump && p.vy < -140) p.vy = -140; // variable jump height
 
     p.vy = Math.min(p.vy + GRAV * dt, 420);
+    const oldX = p.x;
     p.x += p.vx * dt;
     collideX(w, p);
+    const crate = w.crates.find(c => p.x < c.x + c.w && p.x + p.w > c.x && p.y < c.y + c.h && p.y + p.h > c.y);
+    if (crate) {
+      const dir = ax || (p.x < crate.x ? -1 : 1);
+      if (w.abilities.has('torque')) {
+        const pushSpeed = 45;
+        const nextX = crate.x + dir * pushSpeed * dt;
+        if (!crateBlocked(w, crate, nextX, crate.y)) {
+          crate.x = nextX;
+          p.x = dir > 0 ? crate.x - p.w : crate.x + crate.w;
+          p.vx = dir * pushSpeed;
+          if (!crate.notified) {
+            crate.notified = true;
+            toast(w, 'Gearbox: slower but STRONGER. That strength is TORQUE.', 3.5);
+          }
+        } else {
+          p.x = dir > 0 ? crate.x - p.w : crate.x + crate.w;
+          p.vx = 0;
+        }
+      } else {
+        p.x = oldX;
+        p.vx = 0;
+        if (crate.bumpT <= 0) {
+          crate.bumpT = 0.5;
+          toast(w, 'TOO HEAVY — motor spins fast but has no strength.', 3.5);
+          addParts(w, crate.x + (dir > 0 ? 2 : crate.w - 2), crate.y + crate.h - 2, 4, '#8b93a8');
+        }
+      }
+    }
     const prevFeet = p.y + p.h;
     p.y += p.vy * dt;
     const wasAir = !p.onGround;
     collideY(w, p, prevFeet);
+    collideCratesY(w, p, prevFeet);
     if (p.onGround) {
       p.coyote = COYOTE;
       p.lastSafeX = p.x; p.lastSafeY = p.y;
@@ -161,6 +268,7 @@ RQ.game = (() => {
     if (p.y > w.H * T + 24 && !w.dead) {
       p.hp--;
       RQ.audio.hurt();
+      w.shakeT = 0.15;
       if (p.hp <= 0) { w.dead = true; RQ.audio.death(); return; }
       p.x = p.lastSafeX; p.y = p.lastSafeY - 4;
       p.vx = 0; p.vy = 0;
@@ -180,12 +288,61 @@ RQ.game = (() => {
       }
     }
 
-    w.prompt = null; w.openTerminal = null;
-    for (const t of w.terms) {
-      if (Math.abs(p.x + p.w / 2 - t.x - 7) < 13 && Math.abs(p.y - t.y) < 22) {
-        w.prompt = 'READ';
-        if (input.usePressed) { w.openTerminal = t; w.factsRead.add(t.idx); RQ.audio.term(); }
+    for (const c of w.cells) {
+      if (!c.got && Math.abs(p.x + p.w / 2 - c.x - 8) < 12 && Math.abs(p.y + p.h / 2 - c.y - 8) < 14) {
+        c.got = true;
+        w.energy = Math.min(100, w.energy + 35);
+        RQ.audio.pickup();
+        addParts(w, c.x + 8, c.y + 8, 10, '#ffd23f');
       }
+    }
+
+    w.prompt = null; w.openBench = false; w.openGate = null;
+    for (const beacon of w.beacons) {
+      if (!beacon.read && Math.abs(p.x + p.w / 2 - beacon.x - 7) < 13 && Math.abs(p.y - beacon.y) < 22) {
+        beacon.read = true;
+        w.factsRead.add(beacon.idx);
+        toast(w, w.facts[beacon.idx % w.facts.length], 4);
+        RQ.audio.term();
+      }
+    }
+    if (w.bench && !w.bench.installed &&
+        Math.abs(p.x + p.w / 2 - w.bench.x - 8) < 20 && Math.abs(p.y - w.bench.y) < 24) {
+      w.prompt = 'REPAIR';
+      if (input.usePressed) { w.openBench = true; RQ.audio.term(); }
+    }
+    for (const gate of w.gates) {
+      if (!gate.done && Math.abs(p.x + p.w / 2 - gate.x - 8) < 18 && Math.abs(p.y - gate.y) < 24) {
+        w.prompt = 'PROGRAM';
+        if (input.usePressed && w.abilities.has('cpu') && !gate.opening) {
+          w.openGate = gate;
+          gate.opening = true;
+          RQ.audio.term();
+        }
+      }
+    }
+
+    if (input.sonarPressed && w.abilities.has('sonar') && w.sonarCooldown <= 0) {
+      w.sonarCooldown = 1;
+      w.sonarRing = { x: p.x + p.w / 2, y: p.y + p.h / 2, life: 0.8, radius: 0 };
+      RQ.audio.zap();
+      if (!w.sonarExplained) {
+        w.sonarExplained = true;
+        toast(w, 'PING… ECHO! Distance = echo time × speed of sound ÷ 2', 4);
+      }
+    }
+    w.sonarCooldown = Math.max(0, w.sonarCooldown - dt);
+    if (w.sonarRing) {
+      w.sonarRing.life -= dt;
+      w.sonarRing.radius = 170 * (1 - Math.max(0, w.sonarRing.life) / 0.8);
+      for (let ty = 0; ty < w.H; ty++) {
+        for (let tx = 0; tx < w.W; tx++) {
+          if (w.map[ty][tx] !== '=') continue;
+          const dx = tx * T + 8 - w.sonarRing.x, dy = ty * T + 8 - w.sonarRing.y;
+          if (Math.hypot(dx, dy) <= w.sonarRing.radius) w.revealed[ty][tx] = w.t + 3;
+        }
+      }
+      if (w.sonarRing.life <= 0) w.sonarRing = null;
     }
 
     for (const e of w.enemies) {
@@ -197,7 +354,7 @@ RQ.game = (() => {
         const tx = Math.floor(ahead / T);
         const footTy = Math.floor((e.y + e.h + 4) / T);
         const headTy = Math.floor((e.y + 2) / T);
-        if (solidAt(w.map, tx, headTy) || (!solidAt(w.map, tx, footTy) && !platAt(w.map, tx, footTy))) {
+        if (solidAt(w, tx, headTy) || (!solidAt(w, tx, footTy) && !platAt(w.map, tx, footTy))) {
           e.vx *= -1;
         }
       } else {
@@ -209,6 +366,7 @@ RQ.game = (() => {
           p.x < e.x + e.w && p.x + p.w > e.x && p.y < e.y + e.h && p.y + p.h > e.y) {
         if (p.vy > 60 && p.y + p.h - e.y < 8) {
           e.alive = false; p.vy = -260; w.score += 25;
+          w.shakeT = 0.15;
           RQ.audio.stomp();
           addParts(w, e.x + e.w / 2, e.y + e.h / 2, 10, '#8b93a8');
         } else {
@@ -246,11 +404,44 @@ RQ.game = (() => {
     w.parts = w.parts.filter(pt => pt.life > 0);
   }
 
+  function solveGate(w, id) {
+    if (!w.gatesSolved) w.gatesSolved = new Set();
+    w.gatesSolved.add(id);
+    const gate = w.gates.find(item => item.id === id);
+    if (gate) { gate.done = true; gate.opening = false; }
+    for (const bridge of w.meta.bridges) {
+      if (bridge.id !== id) continue;
+      for (let x = bridge.x; x < bridge.x + bridge.len; x++) {
+        w.map[bridge.y] = w.map[bridge.y].slice(0, x) + '-' + w.map[bridge.y].slice(x + 1);
+      }
+    }
+    for (const door of w.meta.doors) {
+      if (door.id !== id) continue;
+      for (let y = door.y; y < door.y + door.h; y++) {
+        w.map[y] = w.map[y].slice(0, door.x) + '.' + w.map[y].slice(door.x + 1);
+      }
+    }
+    const message = id === 0 ? 'BRIDGE EXTENDED!' : id === 1 ? 'DOOR OPEN!' : 'LIGHTS ON!';
+    toast(w, message, 3);
+    RQ.audio.good();
+  }
+
   // ---------- BOSS ----------
   function updateBoss(w, input, dt) {
     const b = w.boss, p = w.player, q = w.quiz;
     b.t += dt; b.flash -= dt;
     b.y = 58 + Math.sin(b.t * 1.4) * 4;
+    if (input.sonarPressed && w.abilities.has('sonar') && w.sonarCooldown <= 0) {
+      w.sonarCooldown = 1;
+      w.sonarRing = { x: p.x + p.w / 2, y: p.y + p.h / 2, life: 0.8, radius: 0 };
+      RQ.audio.zap();
+    }
+    w.sonarCooldown = Math.max(0, w.sonarCooldown - dt);
+    if (w.sonarRing) {
+      w.sonarRing.life -= dt;
+      w.sonarRing.radius = 170 * (1 - Math.max(0, w.sonarRing.life) / 0.8);
+      if (w.sonarRing.life <= 0) w.sonarRing = null;
+    }
 
     if (q.msgT > 0) q.msgT -= dt;
 
@@ -325,12 +516,19 @@ RQ.game = (() => {
 
   function update(w, input, dt) {
     w.t += dt;
+    if (w.toast) {
+      w.toast.life -= dt;
+      if (w.toast.life <= 0) w.toast = null;
+    }
+    w.shakeT = Math.max(0, w.shakeT - dt);
+    w.flashT = Math.max(0, w.flashT - dt);
     if (w.dead || w.complete) {
       for (const pt of w.parts) { pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vy += 300 * dt; pt.life -= dt; }
       w.parts = w.parts.filter(pt => pt.life > 0);
       if (w.isBoss) { w.boss.t += dt; w.boss.y = 58 + Math.sin(w.boss.t * 1.4) * 4; if (w.boss.dead) w.boss.y += w.t * 0; }
       return;
     }
+    updateCrates(w, dt);
     updatePlayer(w, input, dt);
     if (w.isBoss) updateBoss(w, input, dt);
     else updateEntities(w, input, dt);
@@ -408,7 +606,7 @@ RQ.game = (() => {
         const ch = w.map[ty][tx];
         const px = tx * T - w.cam.x, py = ty * T - w.cam.y;
         if (ch === '#') {
-          const topOpen = !solidAt(w.map, tx, ty - 1);
+          const topOpen = !solidAt(w, tx, ty - 1);
           ctx.fillStyle = th.dirt;
           ctx.fillRect(px, py, T, T);
           ctx.fillStyle = th.dirtDark;
@@ -422,11 +620,23 @@ RQ.game = (() => {
             ctx.fillRect(px + 3, py + 3, 2, 1);
             ctx.fillRect(px + 11, py + 3, 2, 1);
           }
-        } else if (ch === '-') {
+        } else if (ch === '-' || (ch === '=' && w.revealed[ty][tx] > w.t)) {
+          if (ch === '=') {
+            const alpha = Math.min(0.22, (w.revealed[ty][tx] - w.t) / 0.5 * 0.22);
+            ctx.fillStyle = `rgba(89,216,255,${alpha})`;
+            ctx.fillRect(px - 2, py - 3, T + 4, 12);
+          }
           ctx.fillStyle = th.plat;
           ctx.fillRect(px, py + 2, T, 5);
-          ctx.fillStyle = th.edge;
+          ctx.fillStyle = ch === '=' ? '#59d8ff' : th.edge;
           ctx.fillRect(px, py + 2, T, 2);
+        } else if (ch === 'D') {
+          ctx.fillStyle = '#252a36';
+          ctx.fillRect(px + 1, py, T - 2, T);
+          for (let sy = py + 2; sy < py + T; sy += 5) {
+            ctx.fillStyle = '#d94f6a';
+            ctx.fillRect(px + 2, sy, T - 4, 2);
+          }
         } else if (ch === '^') {
           RQ.sprites.draw(ctx, 'spike', px, py + 12 - 0);
         }
@@ -462,6 +672,7 @@ RQ.game = (() => {
   function drawPlayer(ctx, w) {
     const p = w.player;
     if (p.iframes > 0 && ((w.t * 16) | 0) % 2) return; // blink
+    if (w.idx === 0 && !w.abilities.has('sprint') && w.energy <= 0 && ((w.t * 12) | 0) % 2) return;
     let spr = 'player_idle';
     if (w.dead || p.iframes > IFRAMES - 0.4 && p.hp < 3) spr = 'player_hurt';
     if (!p.onGround) spr = 'player_jump';
@@ -519,6 +730,9 @@ RQ.game = (() => {
   }
 
   function render(ctx, w) {
+    const shake = w.shakeT > 0 ? Math.sin(w.t * 95) * 2 : 0;
+    ctx.save();
+    ctx.translate(shake, w.shakeT > 0 ? Math.cos(w.t * 83) * 1.5 : 0);
     drawSky(ctx, w);
     drawTiles(ctx, w);
     drawArcs(ctx, w);
@@ -528,10 +742,18 @@ RQ.game = (() => {
       const bob = Math.sin(w.t * 4 + s.x) * 2;
       RQ.sprites.draw(ctx, 'screw', s.x - w.cam.x, s.y - w.cam.y + bob);
     }
-    for (const t of w.terms) {
+    for (const t of w.beacons) {
       const spr = ((w.t * 2 + t.idx) | 0) % 2 ? 'terminal1' : 'terminal2';
       RQ.sprites.draw(ctx, spr, t.x - w.cam.x, t.y - w.cam.y);
     }
+    for (const c of w.cells) {
+      if (!c.got) RQ.sprites.draw(ctx, 'energy', c.x - w.cam.x + 4, c.y - w.cam.y + 4);
+    }
+    if (w.bench) RQ.sprites.draw(ctx, 'bench', w.bench.x - w.cam.x, w.bench.y - w.cam.y);
+    for (const gate of w.gates) {
+      if (!gate.done) RQ.sprites.draw(ctx, 'code_gate', gate.x - w.cam.x, gate.y - w.cam.y);
+    }
+    for (const c of w.crates) RQ.sprites.draw(ctx, 'crate', c.x - w.cam.x, c.y - w.cam.y);
     for (const e of w.enemies) {
       if (!e.alive) continue;
       const spr = e.type === 'crawl'
@@ -594,7 +816,47 @@ RQ.game = (() => {
       ctx.fillStyle = '#ffe9a3';
       ctx.fillText(label, px, py + 1);
     }
+    drawDarkness(ctx, w);
+    if (w.sonarRing) {
+      const ring = w.sonarRing;
+      ctx.beginPath();
+      ctx.arc(ring.x - w.cam.x, ring.y - w.cam.y, ring.radius, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(89,216,255,${Math.min(0.9, ring.life * 1.5)})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    if (w.flashT > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(0.75, w.flashT * 4)})`;
+      ctx.fillRect(0, 0, VW, VH);
+    }
+    ctx.restore();
   }
 
-  return { loadLevel, loadBoss, update, render, T, VW, VH };
+  function drawDarkness(ctx, w) {
+    const regionStart = w.dark ? 0 : (w.darkFrom && !(w.gatesSolved && w.gatesSolved.has(w.darkFrom.id)) ? w.darkFrom.x * T : null);
+    if (regionStart === null) return;
+    const layer = w.darkCanvas;
+    const lctx = layer.getContext('2d');
+    lctx.clearRect(0, 0, VW, VH);
+    const sx = Math.max(0, regionStart - w.cam.x);
+    lctx.fillStyle = 'rgba(0,0,0,0.93)';
+    lctx.fillRect(sx, 0, VW - sx, VH);
+    const ring = w.sonarRing;
+    const radius = ring ? Math.max(44, ring.radius) : 44;
+    const cx = w.player.x + w.player.w / 2 - w.cam.x;
+    const cy = w.player.y + w.player.h / 2 - w.cam.y;
+    if (w.dark || cx + w.cam.x >= regionStart) {
+      lctx.globalCompositeOperation = 'destination-out';
+      const gradient = lctx.createRadialGradient(cx, cy, 2, cx, cy, radius);
+      gradient.addColorStop(0, 'rgba(0,0,0,1)');
+      gradient.addColorStop(0.75, 'rgba(0,0,0,0.94)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      lctx.fillStyle = gradient;
+      lctx.beginPath(); lctx.arc(cx, cy, radius, 0, Math.PI * 2); lctx.fill();
+      lctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.drawImage(layer, 0, 0);
+  }
+
+  return { loadLevel, loadBoss, update, render, toast, solveGate, T, VW, VH };
 })();

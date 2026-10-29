@@ -1,5 +1,4 @@
-// scenes.js — every screen that isn't pure gameplay: title, story, terminal
-// dialog, workshop assembly, quiz overlay, victory, game over, HUD.
+// scenes.js — title, story, repair benches, code gates, workshop, quiz, HUD.
 window.RQ = window.RQ || {};
 
 RQ.scenes = (() => {
@@ -91,34 +90,113 @@ RQ.scenes = (() => {
     return input.enterPressed ? 'play' : null;
   }
 
-  // ---------- TERMINAL DIALOG ----------
-  function dialog(ctx, G, input, dt) {
+  function overlayWorld(ctx, G, w) {
+    RQ.game.render(ctx, w);
+    hud(ctx, w, G);
+    ctx.fillStyle = 'rgba(4,5,12,0.76)';
+    ctx.fillRect(0, 0, VW, VH);
+  }
+
+  function bench(ctx, G, input) {
     const w = G.world;
-    RQ.game.render(ctx, w); // frozen world behind the panel
+    const data = RQ.levels.BENCHES[G.levelIdx];
+    const ui = w.benchUI || (w.benchUI = { phase: 'question', selected: 0 });
+    overlayWorld(ctx, G, w);
+    text(ctx, 'REPAIR BENCH // CHOOSE THE RIGHT PART', VW / 2, 13, 7, '#ffd23f', 'center');
 
-    const t = w.openTerminal;
-    const fact = w.facts[t.idx % w.facts.length];
-
-    // typewriter
-    w.dialogT = (w.dialogT || 0) + dt;
-    const shown = Math.floor(w.dialogT * 40);
-    const full = 'DATA TERMINAL // ' + w.theme.partName;
-    const body = wrap(fact, 40);
-
-    panel(ctx, 18, 108, VW - 36, 62, w.theme.edge);
-    text(ctx, full, 26, 120, 7, w.theme.edge);
-    let y = 137;
-    let count = 0;
-    for (const line of body) {
-      const visible = line.slice(0, Math.max(0, shown - count));
-      text2(ctx, visible, 26, y, 13, '#f2f4f8');
-      count += line.length;
-      y += 13;
+    if (ui.phase === 'installed') {
+      panel(ctx, 20, 24, VW - 40, 132, '#7dd069');
+      text(ctx, 'INSTALLED: ' + data.part.toUpperCase(), VW / 2, 42, 8, '#7dd069', 'center');
+      const icon = RQ.sprites.get(data.options.find(option => option.ok).icon);
+      if (icon) ctx.drawImage(icon, VW / 2 - 8, 49);
+      text2(ctx, data.unlock, 34, 79, 13, '#ffd23f');
+      wrap(data.lesson, 44).forEach((line, i) => text2(ctx, line, 34, 99 + i * 12, 12, '#f2f4f8'));
+      text(ctx, 'ENTER: INSTALL & CONTINUE', VW / 2, 151, 6, '#ffd23f', 'center');
+      if (input.enterPressed) return { installed: true, part: data.part, ability: data.ability };
+      return null;
     }
-    if (shown > fact.length + 20 && ((w.t * 2) | 0) % 2) {
-      text(ctx, 'E/ENTER: CLOSE', VW - 100, 165, 6, '#4a5163');
+
+    panel(ctx, 15, 20, VW - 30, 37, ui.phase === 'wrong' ? '#e23b3b' : '#59d8ff');
+    const question = ui.phase === 'wrong' ? ui.message : data.problem;
+    wrap(question, 48).slice(0, 3).forEach((line, i) =>
+      text2(ctx, line, VW / 2, 34 + i * 11, 12, ui.phase === 'wrong' ? '#ff9d9d' : '#f2f4f8', 'center'));
+
+    data.options.forEach((option, i) => {
+      const x = 12 + i * 99;
+      panel(ctx, x, 67, 91, 77, ui.selected === i ? '#ffd23f' : '#3b4661', '#0d0d17');
+      const icon = RQ.sprites.get(option.icon);
+      if (icon) ctx.drawImage(icon, x + 37, 72);
+      wrap(option.label, 13).slice(0, 2).forEach((line, li) =>
+        text2(ctx, line, x + 45, 111 + li * 12, 11, '#f2f4f8', 'center'));
+    });
+    text(ctx, 'LEFT/RIGHT: SELECT     ENTER: CHOOSE', VW / 2, 160, 6, '#ffd23f', 'center');
+
+    if (input.leftPressed || input.rightPressed) {
+      ui.selected = (ui.selected + (input.rightPressed ? 1 : 2)) % 3;
+      ui.phase = 'question';
     }
-    return (input.usePressed || input.enterPressed) && shown > fact.length * 0.4 ? 'play' : null;
+    if (input.enterPressed) {
+      const option = data.options[ui.selected];
+      if (ui.phase === 'wrong') {
+        ui.phase = 'question';
+      } else if (option.ok) {
+        ui.phase = 'installed';
+        RQ.audio.good();
+      } else {
+        ui.phase = 'wrong';
+        ui.message = option.why;
+        RQ.audio.bad();
+      }
+    }
+    return null;
+  }
+
+  function codeGate(ctx, G, input, gate) {
+    const w = G.world;
+    const data = RQ.levels.GATES[gate.id];
+    const ui = w.gateUI || (w.gateUI = { phase: 'program', slot: 0, ifIndex: 0, thenIndex: 0 });
+    overlayWorld(ctx, G, w);
+    text(ctx, 'CODE GATE ' + (gate.id + 1) + ' // PROGRAM A RULE', VW / 2, 14, 8, '#59d8ff', 'center');
+    wrap(data.goal, 48).forEach((line, i) => text2(ctx, line, VW / 2, 33 + i * 12, 13, '#f2f4f8', 'center'));
+
+    const ifOption = data.ifOpts[ui.ifIndex];
+    const thenOption = data.thenOpts[ui.thenIndex];
+    panel(ctx, 22, 54, VW - 44, 38, ui.slot === 0 ? '#ffd23f' : '#3b4661');
+    text(ctx, 'IF', 32, 68, 7, '#ffd23f');
+    wrap(ifOption.label, 39).slice(0, 2).forEach((line, i) => text2(ctx, line, 55, 69 + i * 12, 13, '#f2f4f8'));
+    panel(ctx, 22, 101, VW - 44, 38, ui.slot === 1 ? '#ffd23f' : '#3b4661');
+    text(ctx, 'THEN', 32, 115, 6, '#ffd23f');
+    wrap(thenOption.label, 39).slice(0, 2).forEach((line, i) => text2(ctx, line, 63, 116 + i * 12, 13, '#f2f4f8'));
+
+    if (ui.phase === 'wrong') {
+      panel(ctx, 28, 143, VW - 56, 23, '#e23b3b');
+      wrap(ui.message, 48).slice(0, 2).forEach((line, i) => text2(ctx, line, VW / 2, 152 + i * 10, 11, '#ff9d9d', 'center'));
+    } else {
+      text(ctx, 'UP/DOWN SLOT   LEFT/RIGHT OPTION   ENTER RUN', VW / 2, 159, 5, '#ffd23f', 'center');
+    }
+
+    if (ui.phase === 'wrong') {
+      if (input.enterPressed) ui.phase = 'program';
+      return null;
+    }
+    if (input.upPressed || input.downPressed) ui.slot = input.downPressed ? 1 : 0;
+    if (input.leftPressed || input.rightPressed) {
+      const delta = input.rightPressed ? 1 : 2;
+      if (ui.slot === 0) ui.ifIndex = (ui.ifIndex + delta) % data.ifOpts.length;
+      else ui.thenIndex = (ui.thenIndex + delta) % data.thenOpts.length;
+    }
+    if (input.enterPressed) {
+      if (!ifOption.ok) {
+        ui.phase = 'wrong'; ui.message = ifOption.why; RQ.audio.bad();
+      } else if (!thenOption.ok) {
+        ui.phase = 'wrong'; ui.message = thenOption.why; RQ.audio.bad();
+      } else {
+        RQ.game.solveGate(w, gate.id);
+        w.gateUI = null;
+        return { solved: true };
+      }
+    }
+    return null;
   }
 
   // ---------- WORKSHOP ----------
@@ -200,7 +278,7 @@ RQ.scenes = (() => {
       const x = 24 + i * 22, y2 = 160;
       panel(ctx, x, y2, 16, 14, G.parts.includes(s) ? '#ffd23f' : '#232833', '#0d0d17');
       if (G.parts.includes(s)) {
-        ctx.drawImage(RQ.sprites.get('part_' + s === 'part_battery' ? 'part_battery' : 'part_' + s), x + 1, y2 + 1);
+        ctx.drawImage(RQ.sprites.get('part_' + s), x + 1, y2 + 1);
       }
     });
 
@@ -223,6 +301,37 @@ RQ.scenes = (() => {
         ctx.drawImage(RQ.sprites.get('part_' + s), VW / 2 - 40 + i * 20, 14);
       }
     });
+    let y = 20;
+    if (w.idx === 0 && !w.abilities.has('sprint')) {
+      text(ctx, 'POWER', 4, y + 5, 5, '#ffd23f');
+      ctx.fillStyle = '#101018';
+      ctx.fillRect(29, y, 56, 7);
+      ctx.fillStyle = w.energy < 20 ? '#e23b3b' : '#ffd23f';
+      ctx.fillRect(30, y + 1, 54 * Math.max(0, w.energy) / 100, 5);
+      text(ctx, String(Math.ceil(w.energy)), 89, y + 6, 5, '#f2f4f8');
+      y += 9;
+    }
+    const abilities = [
+      ['sprint', 'battery', 'SHIFT', '#ffd23f'],
+      ['sonar', 'sensor', 'C', '#59d8ff'],
+      ['torque', 'motor', 'PUSH', '#f0883b'],
+      ['cpu', 'cpu', 'E', '#7dd069'],
+    ];
+    let abilityX = 4;
+    for (const [ability, part, key, color] of abilities) {
+      if (!w.abilities.has(ability)) continue;
+      ctx.drawImage(RQ.sprites.get('part_' + part), abilityX, y);
+      text2(ctx, key, abilityX + 18, y + 12, 11, color);
+      abilityX += 54;
+    }
+    if (w.toast) {
+      const lines = wrap(w.toast.text, 55).slice(0, 3);
+      const entering = Math.min(1, (w.toast.duration - w.toast.life) / 0.18);
+      const x = 16 - (1 - Math.max(0, entering)) * 330;
+      const height = 8 + lines.length * 10;
+      panel(ctx, x, 48, 288, height, '#59d8ff', 'rgba(8,12,24,0.96)');
+      lines.forEach((line, i) => text2(ctx, line, x + 8, 57 + i * 10, 12, '#f2f4f8'));
+    }
   }
 
   // ---------- QUIZ OVERLAY ----------
@@ -251,6 +360,7 @@ RQ.scenes = (() => {
       panel(ctx, 30, 102, VW - 60, 14 + lines.length * 12, q.msg.startsWith('CORRECT') ? '#7dd069' : '#e23b3b');
       lines.forEach((l, i) => text2(ctx, l, VW / 2, 116 + i * 12, 11, '#f2f4f8', 'center'));
     }
+    text2(ctx, 'ARROWS/WASD: MOVE   STAND ON A-D TO ANSWER', VW / 2, 174, 10, '#9fd4ff', 'center');
   }
 
   // ---------- VICTORY ----------
@@ -282,5 +392,5 @@ RQ.scenes = (() => {
     return input.enterPressed ? 'retry' : null;
   }
 
-  return { title, story, dialog, workshop, hud, quizUI, victory, gameover, drawRobot };
+  return { title, story, bench, codeGate, workshop, hud, quizUI, victory, gameover, drawRobot };
 })();

@@ -21,23 +21,26 @@ python3 -m http.server 8000
 | Input | Action |
 |---|---|
 | Arrows / WASD | Move |
-| Space / Z / Up | Jump (hold for higher) |
-| E / Down | Read data terminal |
-| Enter | Advance screens |
+| Space / Z | Jump (hold for higher) |
+| Shift / X | Sprint (after installing the battery) |
+| C | Sonar ping (after installing the sensor) |
+| E | Use repair benches and code gates |
+| Enter | Choose an answer / advance scenes |
 | M | Mute |
 
 ## The levels
 
 | Level | Component taught |
 |---|---|
-| 1 · Power Plant | Battery & power supply (voltage, regulators, charge) |
-| 2 · Sensor Fields | Sensors (ultrasonic, gyro, accelerometer, cameras) |
-| 3 · Motor Works | Actuators (DC motors, servos, gearboxes, torque) |
-| 4 · Circuit City | Controller / CPU (Sense-Think-Act, programs) |
+| 1 · Power Plant | Survive brownouts, collect energy, then sprint across five-tile gaps |
+| 2 · Sensor Fields | Ping to reveal hidden platforms and cross a dark pit |
+| 3 · Motor Works | Push heavy crates with gearbox torque to climb four-tile walls |
+| 4 · Circuit City | Program three IF/THEN code gates to build a bridge, open a door, and turn on lights |
 | Final · Scrap Throne | Quiz boss — answer questions by standing on pads |
 
-Read the glowing **data terminals** in each level — the final boss only asks
-questions the terminals answered.
+Walk past information beacons to learn quick robot facts. At each repair bench,
+diagnose BOLT's problem and install the part that makes the next challenge
+possible. The final boss tests the ideas you used along the way.
 
 ## Deploy on Netlify
 
