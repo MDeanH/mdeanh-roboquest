@@ -23,7 +23,7 @@ html, body {
   background: #000;
 }
 
-/* CRT overlay: scanlines + vignette */
+/* CRT overlay: scanlines + vignette (kept subtle so text stays readable) */
 #crt {
   position: absolute;
   inset: 0;
@@ -33,7 +33,7 @@ html, body {
       to bottom,
       rgba(0, 0, 0, 0) 0px,
       rgba(0, 0, 0, 0) 2px,
-      rgba(0, 0, 0, 0.18) 3px,
+      rgba(0, 0, 0, 0.10) 3px,
       rgba(0, 0, 0, 0) 4px
     );
   mix-blend-mode: multiply;
@@ -42,7 +42,7 @@ html, body {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%);
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.40) 100%);
 }
 
 #hint {
@@ -51,8 +51,10 @@ html, body {
   left: 0;
   right: 0;
   text-align: center;
-  color: #3a4054;
-  font-size: 8px;
+  color: #7d88a5;
+  font-family: 'VT323', 'Courier New', monospace;
+  font-size: 14px;
   pointer-events: none;
   letter-spacing: 1px;
+  text-shadow: 0 1px 2px #000;
 }

@@ -562,9 +562,12 @@ RQ.game = (() => {
         ctx.fillRect(px - 12, py - 2, 24, 4);
         ctx.fillStyle = pad.glow > 0 ? '#fff' : th.edge;
         ctx.fillRect(px - 12, py - 4, 24, 2);
-        ctx.fillStyle = '#0d0d17';
-        ctx.font = '6px "Press Start 2P", monospace';
+        // letter in a bright chip above the pad
+        ctx.fillStyle = '#ffd23f';
+        ctx.fillRect(px - 6, py - 18, 12, 11);
+        ctx.font = '12px "VT323", monospace';
         ctx.textAlign = 'center';
+        ctx.fillStyle = '#1a1408';
         ctx.fillText('ABCD'[pad.i], px, py - 8);
       }
     }
@@ -581,12 +584,13 @@ RQ.game = (() => {
     // interaction prompt
     if (w.prompt) {
       const p = w.player;
-      ctx.font = '6px "Press Start 2P", monospace';
+      ctx.font = '12px "VT323", monospace';
       ctx.textAlign = 'center';
       const label = 'E: ' + w.prompt;
-      const px = p.x + 5 - w.cam.x, py = p.y - 10 - w.cam.y;
-      ctx.fillStyle = '#0d0d17';
-      ctx.fillRect(px - label.length * 3 - 3, py - 5, label.length * 6 + 6, 9);
+      const px = p.x + 5 - w.cam.x, py = p.y - 12 - w.cam.y;
+      const tw = label.length * 5 + 8;
+      ctx.fillStyle = 'rgba(13,13,23,0.95)';
+      ctx.fillRect(px - tw / 2, py - 9, tw, 12);
       ctx.fillStyle = '#ffe9a3';
       ctx.fillText(label, px, py + 1);
     }

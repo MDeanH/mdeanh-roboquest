@@ -5,12 +5,21 @@ window.RQ = window.RQ || {};
 RQ.scenes = (() => {
   const VW = 320, VH = 180;
   const FONT = '"Press Start 2P", monospace';
+  const FONT_BODY = '"VT323", "Press Start 2P", monospace';
 
-  function text(ctx, str, x, y, size = 8, color = '#f2f4f8', align = 'left') {
-    ctx.font = size + 'px ' + FONT;
+  function text(ctx, str, x, y, size = 8, color = '#f2f4f8', align = 'left', font = FONT) {
+    ctx.font = size + 'px ' + font;
     ctx.textAlign = align;
+    // 1px shadow for readability over busy backgrounds
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillText(str, x + 1, y + 1);
     ctx.fillStyle = color;
     ctx.fillText(str, x, y);
+  }
+
+  // Body copy in VT323 — far more readable at small sizes than Press Start 2P
+  function text2(ctx, str, x, y, size = 13, color = '#f2f4f8', align = 'left') {
+    text(ctx, str, x, y, size, color, align, FONT_BODY);
   }
 
   function wrap(str, maxChars) {
@@ -48,6 +57,7 @@ RQ.scenes = (() => {
     // logo
     text(ctx, 'ROBOQUEST', VW / 2, 56 + bob, 24, '#3ec9a7', 'center');
     text(ctx, 'BUILD-A-BOT ADVENTURE', VW / 2, 74 + bob, 8, '#59d8ff', 'center');
+    text2(ctx, 'learn the parts of a robot!', VW / 2, 88 + bob, 13, '#9fd4ff', 'center');
 
     // BOLT sprite big
     ctx.save();
@@ -60,7 +70,7 @@ RQ.scenes = (() => {
     if (((G.t * 2) | 0) % 2) {
       text(ctx, 'PRESS ENTER', VW / 2, 162, 8, '#ffd23f', 'center');
     }
-    text(ctx, 'a game about the parts of a robot', VW / 2, 174, 6, '#4a5163', 'center');
+    text2(ctx, 'a game about the parts of a robot', VW / 2, 175, 11, '#8b93a8', 'center');
     return input.enterPressed ? 'story' : null;
   }
 
@@ -69,13 +79,13 @@ RQ.scenes = (() => {
     ctx.fillStyle = '#06060f';
     ctx.fillRect(0, 0, VW, VH);
     panel(ctx, 20, 22, VW - 40, 130, '#b06fd8');
-    let y = 42;
+    let y = 46;
     for (const line of RQ.levels.INTRO) {
-      for (const wl of wrap(line, 30)) {
-        text(ctx, wl, 32, y, 8, '#f2f4f8');
-        y += 12;
+      for (const wl of wrap(line, 38)) {
+        text2(ctx, wl, 32, y, 14, '#f2f4f8');
+        y += 14;
       }
-      y += 6;
+      y += 5;
     }
     if (((G.t * 2) | 0) % 2) text(ctx, 'ENTER >>', VW - 74, 170, 8, '#ffd23f');
     return input.enterPressed ? 'play' : null;
@@ -93,20 +103,20 @@ RQ.scenes = (() => {
     w.dialogT = (w.dialogT || 0) + dt;
     const shown = Math.floor(w.dialogT * 40);
     const full = 'DATA TERMINAL // ' + w.theme.partName;
-    const body = wrap(fact, 32);
+    const body = wrap(fact, 40);
 
     panel(ctx, 18, 108, VW - 36, 62, w.theme.edge);
-    text(ctx, full, 26, 122, 7, w.theme.edge);
-    let y = 136;
+    text(ctx, full, 26, 120, 7, w.theme.edge);
+    let y = 137;
     let count = 0;
     for (const line of body) {
       const visible = line.slice(0, Math.max(0, shown - count));
-      text(ctx, visible, 26, y, 8, '#f2f4f8');
+      text2(ctx, visible, 26, y, 13, '#f2f4f8');
       count += line.length;
-      y += 11;
+      y += 13;
     }
     if (shown > fact.length + 20 && ((w.t * 2) | 0) % 2) {
-      text(ctx, 'E/ENTER: CLOSE', VW - 100, 164, 6, '#4a5163');
+      text(ctx, 'E/ENTER: CLOSE', VW - 100, 165, 6, '#4a5163');
     }
     return (input.usePressed || input.enterPressed) && shown > fact.length * 0.4 ? 'play' : null;
   }
@@ -173,15 +183,15 @@ RQ.scenes = (() => {
     text(ctx, 'PART INSTALLED:', 160, 40, 7, '#4a5163');
     text(ctx, G.justInstalled || '', 160, 52, 8, '#ffd23f');
 
-    let y = 68;
+    let y = 66;
     text(ctx, 'WHAT YOU LEARNED', 160, y, 7, '#3ec9a7');
-    y += 12;
-    for (const f of (G.lastFacts || []).slice(0, 3)) {
-      for (const wl of wrap(f, 26)) {
-        text(ctx, wl, 160, y, 6, '#c8d0e0');
-        y += 8;
+    y += 13;
+    for (const f of (G.lastFacts || []).slice(0, 2)) {
+      for (const wl of wrap(f, 28)) {
+        text2(ctx, wl, 160, y, 11, '#e2e8f4');
+        y += 11;
       }
-      y += 2;
+      y += 3;
     }
 
     // component slots bottom-left
@@ -222,30 +232,24 @@ RQ.scenes = (() => {
     const qq = RQ.levels.QUIZ[q.order[q.qi]];
 
     // question banner
-    panel(ctx, 24, 26, VW - 48, 30, '#d94f6a');
-    text(ctx, 'MEGA-SCRAP ASKS:', 32, 36, 6, '#d94f6a');
-    wrap(qq.q, 36).forEach((l, i) => text(ctx, l, 32, 47 + i * 9, 7, '#f2f4f8'));
+    panel(ctx, 24, 24, VW - 48, 34, '#d94f6a');
+    text(ctx, 'MEGA-SCRAP ASKS:', 32, 34, 6, '#d94f6a');
+    wrap(qq.q, 44).forEach((l, i) => text2(ctx, l, 32, 48 + i * 12, 12, '#f2f4f8'));
 
-    // answers above pads
-    ctx.font = '5px ' + FONT;
-    ctx.textAlign = 'center';
-    for (const pad of w.pads) {
-      const label = 'ABCD'[pad.i] + ': ' + qq.a[pad.i];
-      const px = pad.x - w.cam.x;
-      const lines = wrap(label, 14);
-      lines.forEach((l, i) => {
-        ctx.fillStyle = '#0d0d17';
-        const tw = l.length * 5 + 4;
-        ctx.fillRect(px - tw / 2, 108 + i * 8 - 5, tw, 8);
-        ctx.fillStyle = '#ffe9a3';
-        ctx.fillText(l, px, 108 + i * 8);
-      });
+    // answers in a fixed strip under the question — pads only carry A/B/C/D chips
+    for (let i = 0; i < 4; i++) {
+      const bx = 14 + i * 74, bw = 68;
+      const active = q.locked === i;
+      panel(ctx, bx, 64, bw, 34, active ? '#ffd23f' : '#2b3a5e');
+      text(ctx, 'ABCD'[i], bx + 6, 75, 7, '#ffd23f');
+      wrap(qq.a[i], 13).slice(0, 2).forEach((l, li) =>
+        text2(ctx, l, bx + 18, 74 + li * 12, 11, '#f2f4f8'));
     }
 
     if (q.msgT > 0 && q.msg) {
-      const lines = wrap(q.msg, 56);
-      panel(ctx, 30, 62, VW - 60, 14 + lines.length * 9, q.msg.startsWith('CORRECT') ? '#7dd069' : '#e23b3b');
-      lines.forEach((l, i) => text(ctx, l, VW / 2, 74 + i * 9, 6, '#f2f4f8', 'center'));
+      const lines = wrap(q.msg, 52);
+      panel(ctx, 30, 102, VW - 60, 14 + lines.length * 12, q.msg.startsWith('CORRECT') ? '#7dd069' : '#e23b3b');
+      lines.forEach((l, i) => text2(ctx, l, VW / 2, 116 + i * 12, 11, '#f2f4f8', 'center'));
     }
   }
 
@@ -262,7 +266,7 @@ RQ.scenes = (() => {
     drawRobot(ctx, G, VW / 2 - 24, 74, 3);
 
     text(ctx, 'FINAL SCORE: ' + G.score, VW / 2, 138, 8, '#f2f4f8', 'center');
-    text(ctx, 'you know the parts of a robot now!', VW / 2, 152, 6, '#4a5163', 'center');
+    text2(ctx, 'you know the parts of a robot now!', VW / 2, 154, 12, '#9fd4ff', 'center');
     if (((G.t * 2) | 0) % 2) text(ctx, 'ENTER: PLAY AGAIN', VW / 2, 168, 7, '#ffd23f', 'center');
     return input.enterPressed ? 'restart' : null;
   }
@@ -273,7 +277,7 @@ RQ.scenes = (() => {
     ctx.fillStyle = 'rgba(10,4,8,0.75)';
     ctx.fillRect(0, 0, VW, VH);
     text(ctx, 'BOLT IS SCRAP...', VW / 2, 76, 14, '#e23b3b', 'center');
-    text(ctx, G.world.isBoss ? 'MEGA-SCRAP wins this round' : 'the factory claims another bot', VW / 2, 96, 7, '#8b93a8', 'center');
+    text2(ctx, G.world.isBoss ? 'MEGA-SCRAP wins this round' : 'the factory claims another bot', VW / 2, 100, 13, '#c8d0e0', 'center');
     if (((G.t * 2) | 0) % 2) text(ctx, 'ENTER: TRY AGAIN', VW / 2, 120, 8, '#ffd23f', 'center');
     return input.enterPressed ? 'retry' : null;
   }
