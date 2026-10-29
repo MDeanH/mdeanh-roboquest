@@ -93,7 +93,7 @@ RQ.scenes = (() => {
   function overlayWorld(ctx, G, w) {
     RQ.game.render(ctx, w);
     hud(ctx, w, G);
-    ctx.fillStyle = 'rgba(4,5,12,0.76)';
+    ctx.fillStyle = 'rgba(4,5,12,0.92)';
     ctx.fillRect(0, 0, VW, VH);
   }
 
@@ -294,13 +294,6 @@ RQ.scenes = (() => {
     }
     text(ctx, 'SCORE ' + String(G.score).padStart(5, '0'), VW - 4, 10, 7, '#f2f4f8', 'right');
     text(ctx, w.isBoss ? 'FINAL EXAM' : w.theme.name, VW / 2, 9, 6, w.theme.edge, 'center');
-    // part icons collected
-    const slots = ['battery', 'sensor', 'motor', 'cpu'];
-    slots.forEach((s, i) => {
-      if (G.parts.includes(s)) {
-        ctx.drawImage(RQ.sprites.get('part_' + s), VW / 2 - 40 + i * 20, 14);
-      }
-    });
     let y = 20;
     if (w.idx === 0 && !w.abilities.has('sprint')) {
       text(ctx, 'POWER', 4, y + 5, 5, '#ffd23f');
